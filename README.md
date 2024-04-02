@@ -4,7 +4,9 @@
 Spatial audio enhances listeners' experiences, providing a more realistic and immersive audio environment. This technology holds the potential to benefit listeners across various industries. As more advanced spatial computing emerges, spatial audio becomes instrumental in elevating the user experience of these products even further.
 
 ## Problem to be solved
-We want to develop an audio effect software incorporating sound localization and reverberation to simulate spatial characteristics. We intend to maintain the input and output in binaural format, which, in comparison to ambisonics, has restricted dimensions for spatial audio. However, the spatial audio effect can be achieved by doing binaural panning, determining the distance and depth of audio sources, and applying realistic room acoustics for reverberation.
+We want to develop an audio effect software incorporating sound localization and reverberation to simulate spatial characteristics. We intend to maintain the input and output in binaural format, which, in comparison to ambisonics, has restricted dimensions for spatial audio. However, the spatial audio effect can be achieved by doing binaural panning, determining the distance and depth of audio sources, and applying realistic room acoustics for reverberation. 
+
+Our preliminary objective is to build a plugin that supports OSC control in REAPER. If time permits, we also plan to integrate this plugin into Unity to support position/orientation data from a 3D environment. 
 
 ## Need for this project
 * 3D binaural synthesis
@@ -21,19 +23,40 @@ We want to design software comparable to the state-of-the-art spatializer dearVR
 
 ## Implementation
 1. Input Audio Processing
-2. Multi-Channel Format Conversion
-3. Early Reflection Generation
-4. Spatial Rendering
-5. Filter Processing
-6. User Interface Interaction
+    * Multi-Channel Format Conversion (mono input → stereo output)
+    * Block processing
+        * Overlap and add
+    * OSC input and control
+
+2. Spatial Rendering
+    * ILD (Interaural Level Differences), ITD (Interaural Time Differences)
+    * Filter Processing head related transfer functions (HRTFs), HRTF with room reverb encoded (BRIR)
+        * Extracting measurement from SOFA (spatially oriented format for acoustics) file: https://docs.rs/sofar/latest/sofar/
+        * Process HRTF: https://docs.rs/hrtf/latest/hrtf/
+3. Reverberation Rendering
+4. User Interface Interaction
+    * VST in rust: https://github.com/RustAudio/vst-rs
+    * https://www.seventeencups.net/posts/writing-an-audio-plugin-in-rust/
+
+## System Flowchart
+<img src="./fig/system_flowchart.png" alt="flowchart" width="90%"> \
+Reference: [Orbiter](https://github.com/superkittens/Orbiter)
 
 ## References (algorithmic)
 * https://docs.rs/ambisonic/latest/ambisonic/
-* https://docs.rs/rodio/latest/rodio/source/struct.Spatial.html
+* Rust playback library (include spatial audio effect):
+  * https://docs.rs/rodio/latest/rodio/source/struct.Spatial.html
+  * https://docs.rs/kira/latest/kira/spatial/index.html
+* C. Mittag, M. Böhmeand S. Werner, “Dataset of KEMAR-BRIRs measured at several positions and head orientations in a real room”. Zenodo, Dec. 16, 2016. doi: 10.5281/zenodo.206860.
+  * https://zenodo.org/records/206860#.XzygXy0ZNQI
+
+* Pyroomacoustics: https://pypi.org/project/pyroomacoustics/0.1.4/
+
 * C. Tsakostas, A. Floros, and Y. Deliyiannis, ‘Binaural rendering for enhanced 3d audio perception’, Proc. Audio Mostly, 2007.
 * A. Floros and N.-A. Tatlas, ‘Spatial enhancement for immersive stereo audio applications’, in 2011 17th International Conference on Digital Signal Processing (DSP), 2011, pp. 1–7.
 
 ## Work Assignments
 * Audio processing
 * Spatial rendering
+* Reverberation Rendering
 * Implementing the user interface
