@@ -6,6 +6,7 @@ description = "Spatializer Plugin for Audio Software Engineering."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+
 [dependencies]
 hrtf = "0.8.1"
 sofar = "=0.1.6"
