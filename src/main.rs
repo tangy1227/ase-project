@@ -2,7 +2,6 @@ use sofar::reader::{OpenOptions, Filter};
 use sofar::render::Renderer;
 
 fn main() {
-    println!("hello world");
 
     // Open sofa file, resample HRTF data if needed to 44100
     let sofa = OpenOptions::new()

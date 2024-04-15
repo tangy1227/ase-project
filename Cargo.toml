@@ -6,8 +6,21 @@ description = "Spatializer Plugin for Audio Software Engineering."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+dsp = []
 
 [dependencies]
 hrtf = "0.8.1"
 sofar = "=0.1.6"
+anyhow = "1.0"
+assert_approx_eq = "1.1"
+hound = "3.5"
+cpal = "0.15"
+criterion = "0.4"
+rand = "0.8"
+ringbuf = "0.3"
+
+[[example]]
+name = "renderer"
+required-features = ["dsp"]
 
