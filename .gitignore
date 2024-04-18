@@ -1,7 +1,7 @@
 /target
 
-# dataset
-/SOFA-data
+# # dataset
+# /SOFA-data
 # /audio
 
 *.DS_Store
