@@ -1,6 +1,8 @@
 // Retrieved from: https://github.com/andreiltd/sofar/blob/main/examples/renderer.rs
 // usage: target/debug/examples/renderer <audio path> <sofa file path>
 
+// Todo: read through the code and see where to add the plugin component!!
+
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{BufferSize, StreamConfig};
 
@@ -81,6 +83,7 @@ where
     let mut left = vec![0.0; BLOCK_LEN];
     let mut right = vec![0.0; BLOCK_LEN];
 
+    // sofa Renderer
     let render = Renderer::builder(filt_len)
         .with_sample_rate(sample_rate)
         .with_partition_len(64)

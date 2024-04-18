@@ -2,6 +2,6 @@
 
 # dataset
 /SOFA-data
-/audio
+# /audio
 
 *.DS_Store

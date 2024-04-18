@@ -29,6 +29,6 @@ if __name__ == "__main__":
     path_cartesian = '/Users/Owen/Documents/GitHub/ase-project/SOFA-data/BRIR_Audimax_LSC_KU100_P2_circ360.sofa'
 
     read_sofa(path_spherical)
-    read_sofa(path_cartesian)
+    # read_sofa(path_cartesian)
 
 
