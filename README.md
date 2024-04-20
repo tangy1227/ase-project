@@ -1,5 +1,10 @@
 # ASE-Project Group 1 Project Proposal / Draft
 
+## Building
+```shell
+cargo xtask bundle ase-project --release
+```
+
 ## Motivation
 Spatial audio enhances listeners' experiences, providing a more realistic and immersive audio environment. This technology holds the potential to benefit listeners across various industries. As more advanced spatial computing emerges, spatial audio becomes instrumental in elevating the user experience of these products even further.
 

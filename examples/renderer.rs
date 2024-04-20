@@ -1,7 +1,7 @@
 // Retrieved from: https://github.com/andreiltd/sofar/blob/main/examples/renderer.rs
-// usage: target/debug/examples/renderer <audio path> <sofa file path>
 
-// Todo: read through the code and see where to add the plugin component!!
+// cargo run --release --example renderer
+// usage: target/debug/examples/renderer <audio path> <sofa file path>
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{BufferSize, StreamConfig};

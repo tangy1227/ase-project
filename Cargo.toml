@@ -1,3 +1,5 @@
+workspace = { members = ["xtask"] }
+
 [package]
 name = "ase-project"
 version = "0.1.0"
@@ -9,7 +11,11 @@ description = "Spatializer Plugin for Audio Software Engineering."
 [features]
 dsp = []
 
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["assert_process_allocs"] }
 hrtf = "0.8.1"
 sofar = "=0.1.6"
 anyhow = "1.0"
@@ -19,8 +25,9 @@ cpal = "0.15"
 criterion = "0.4"
 rand = "0.8"
 ringbuf = "0.3"
+parking_lot = "0.12"
 
 [[example]]
 name = "renderer"
-required-features = ["dsp"]
+
 
