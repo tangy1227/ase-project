@@ -5,10 +5,12 @@ use sofar::render::Renderer;
 
 use nih_plug::prelude::*;
 use parking_lot::Mutex;
+use std::sync::mpsc::channel;
 use std::sync::Arc;
 
 struct Spatializer {
     params: Arc<SpatializerParams>,
+    sofa: Sofar,
 }
 
 /// The [`Params`] derive macro gathers all of the information needed for the wrapper to know about
@@ -27,22 +29,6 @@ struct SpatializerParams {
     pub azimuth: FloatParam,
     #[id = "elevation"]
     pub elevation: FloatParam,
-
-    /// This field isn't used in this example, but anything written to the vector would be restored
-    /// together with a preset/state file saved for this plugin. This can be useful for storing
-    /// things like sample data.
-    #[persist = "industry_secrets"]
-    pub random_data: Mutex<Vec<f32>>,
-
-    /// You can also nest parameter structs. These will appear as a separate nested group if your
-    /// DAW displays parameters in a tree structure.
-    #[nested(group = "Subparameters")]
-    pub sub_params: SubParams,
-
-    /// Nested parameters also support some advanced functionality for reusing the same parameter
-    /// struct multiple times.
-    #[nested(array, group = "Array Parameters")]
-    pub array_params: [ArrayParams; 3],
 }
 
 ///=============================== Different types of parameters... ===============================///
@@ -64,6 +50,7 @@ impl Default for Spatializer {
     fn default() -> Self {
         Self {
             params: Arc::new(SpatializerParams::default()),
+            sofa: OpenOptions::new().open("/Users/Owen/Documents/GitHub/ase-project/SOFA-data/HRIR_FULL2DEG.sofa").unwrap(),
         }
     }
 }
@@ -98,41 +85,18 @@ impl Default for SpatializerParams {
             azimuth: FloatParam::new(
                 "Azimuth",
                 0.0,
-                FloatRange::Linear { min: 0.0, max: 360.0 },
+                FloatRange::Linear { min: -360.0, max: 360.0 },
             )
             .with_unit(" deg")
-            .with_step_size(2.0),
+            .with_smoother(SmoothingStyle::Linear(50.0)),
 
             elevation: FloatParam::new(
                 "Elevation",
                 0.0,
-                FloatRange::Linear { min: -90.0, max: 90.0 },
+                FloatRange::Linear { min: -360.0, max: 360.0 },
             )
             .with_unit(" deg")
             .with_step_size(2.0),            
-
-            // Persisted fields can be initialized like any other fields, and they'll keep their
-            // values when restoring the plugin's state.
-            random_data: Mutex::new(Vec::new()),
-            sub_params: SubParams {
-                nested_parameter: FloatParam::new(
-                    "Unused Nested Parameter",
-                    0.5,
-                    FloatRange::Skewed {
-                        min: 2.0,
-                        max: 2.4,
-                        factor: FloatRange::skew_factor(2.0),
-                    },
-                )
-                .with_value_to_string(formatters::v2s_f32_rounded(2)),
-            },
-            array_params: [1, 2, 3].map(|index| ArrayParams {
-                nope: FloatParam::new(
-                    format!("Nope {index}"),
-                    0.5,
-                    FloatRange::Linear { min: 1.0, max: 2.0 },
-                ),
-            }),
 
         }
     }
@@ -184,6 +148,21 @@ impl Plugin for Spatializer {
     // then this would be the place. State is kept around when the host reconfigures the
     // plugin. If we do need special initialization, we could implement the `initialize()` and/or
     // `reset()` methods
+    fn initialize(
+        &mut self,
+        _audio_io_layout: &AudioIOLayout,
+        _buffer_config: &BufferConfig,
+        _context: &mut impl InitContext<Self>,
+    ) -> bool {
+
+        let sofa = OpenOptions::new()
+            .sample_rate(48000.0)
+            .open("/Users/Owen/Documents/GitHub/ase-project/SOFA-data/HRIR_FULL2DEG.sofa")
+            .unwrap(); 
+        self.sofa = sofa;
+        
+        true
+    }    
 
     fn process(
         &mut self,
@@ -191,14 +170,50 @@ impl Plugin for Spatializer {
         _aux: &mut AuxiliaryBuffers,
         _context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
+        // dbg!(buffer.as_slice()[0].len()); // [512; 2]
 
+        let buffer_slice: &mut [&mut [f32]] = buffer.as_slice();
 
-        nih_dbg!(buffer.as_slice());
+        // Combine the channels with average between corresponding rows
+        let combined_buffer: Vec<_> = buffer_slice[0]
+            .iter()
+            .zip(buffer_slice[1].iter())
+            .map(|(row1, row2)| (*row1 + *row2) / 2.0) // mono_sample.clamp(-1.0, 1.0)
+            .collect();
+        // dbg!(combined_buffer.len());
+
+        let x = self.params.azimuth.value() / 360.0 + 0.01;      
+        let y = self.params.elevation.value() / 360.0 + 0.01;
+        dbg!(x);
+
+        // let x = 0.0; // front-back
+        // let y = 1.0; // right-left
+        let z = 0.0; // up-down 
+        let filt_len = self.sofa.filter_len();
+        let mut filter = Filter::new(filt_len);
+        self.sofa.filter(x, y, z, &mut filter);
+
+        let mut render = Renderer::builder(filt_len)
+            .with_sample_rate(48000.0)
+            .with_partition_len(64)
+            .build()
+            .unwrap();
+        render.set_filter(&filter);
+
+        let mut left: Vec<f32> = vec![0.0; combined_buffer.len()];
+        let mut right: Vec<f32> = vec![0.0; combined_buffer.len()];
+        render
+            .process_block(&combined_buffer, &mut left, &mut right)
+            .unwrap();
+
+        // Modify the buffer in-place
+        buffer_slice[0].copy_from_slice(&left);
+        buffer_slice[1].copy_from_slice(&right);        
+
 
         // for channel_samples in buffer.iter_samples() {
         //     // Smoothing is optionally built into the parameters themselves
         //     let gain = self.params.gain.smoothed.next();
-
         //     for sample in channel_samples {
         //         *sample *= gain;
         //     }
