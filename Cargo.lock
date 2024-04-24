@@ -78,6 +78,7 @@ dependencies = [
  "nih_plug",
  "parking_lot",
  "rand",
+ "realfft",
  "ringbuf",
  "sofar",
 ]
