@@ -1,5 +1,11 @@
 # ASE-Project Group 1 Project Proposal / Draft
 
+## User Documentation
+Github Pages Link: <luheehk.github.io/>
+Github Repo Link
+```
+https://github.com/luheehk/luheehk.github.io.git
+```
 ## Building
 ```shell
 cargo xtask bundle ase-project --release
@@ -9,9 +15,9 @@ cargo xtask bundle ase-project --release
 Spatial audio enhances listeners' experiences, providing a more realistic and immersive audio environment. This technology holds the potential to benefit listeners across various industries. As more advanced spatial computing emerges, spatial audio becomes instrumental in elevating the user experience of these products even further.
 
 ## Problem to be solved
-We want to develop an audio effect software incorporating sound localization and reverberation to simulate spatial characteristics. We intend to maintain the input and output in binaural format, which, in comparison to ambisonics, has restricted dimensions for spatial audio. However, the spatial audio effect can be achieved by doing binaural panning, determining the distance and depth of audio sources, and applying realistic room acoustics for reverberation. 
+We want to develop an audio effect software incorporating sound localization and reverberation to simulate spatial characteristics. We intend to maintain the input and output in binaural format, which, in comparison to ambisonics, has restricted dimensions for spatial audio. However, the spatial audio effect can be achieved by doing binaural panning, determining the distance and depth of audio sources, and applying realistic room acoustics for reverberation.
 
-Our preliminary objective is to build a plugin that supports OSC control in REAPER. If time permits, we also plan to integrate this plugin into Unity to support position/orientation data from a 3D environment. 
+Our preliminary objective is to build a plugin that supports OSC control in REAPER. If time permits, we also plan to integrate this plugin into Unity to support position/orientation data from a 3D environment.
 
 ## Need for this project
 * 3D binaural synthesis
