@@ -1,7 +1,4 @@
 /target
-
-# # dataset
-# /SOFA-data
-# /audio
+.vscode
 
 *.DS_Store

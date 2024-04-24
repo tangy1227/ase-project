@@ -26,6 +26,7 @@ criterion = "0.4"
 rand = "0.8"
 ringbuf = "0.3"
 parking_lot = "0.12"
+realfft = "3.3.0"
 
 [[example]]
 name = "renderer"

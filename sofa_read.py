@@ -1,9 +1,10 @@
+# pip install sofar
 import sofar as sf
 
 def read_sofa(path):
     sofa_read = sf.read_sofa(path, verify=False)
 
-    # inspect = sofa_read.inspect()
+    inspect = sofa_read.inspect()
     ir = sofa_read.Data_IR                  # 3D shape: (M: measurements, R: receivers, N: samples)
     source_pos = sofa_read.SourcePosition   # 2D shape: (M: measurements, C: Number of coordinates (always 3))
     rec_pos = sofa_read.ReceiverPosition

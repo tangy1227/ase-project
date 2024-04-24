@@ -1,18 +1,42 @@
 mod spatializer_efx;
 
-use realfft::num_traits::Float;
 use sofar::reader::{Filter, OpenOptions, Sofar};
 use sofar::render::Renderer;
 
 use nih_plug::prelude::*;
-use parking_lot::Mutex;
-use std::sync::mpsc::channel;
+use realfft::num_complex::Complex32;
+use realfft::{ComplexToReal, RealFftPlanner, RealToComplex};
+use realfft::num_traits::Zero;
+use std::f32;
 use std::sync::Arc;
 
+/// The size of the windows we'll process at a time.
+const WINDOW_SIZE: usize = 64;
+/// The length of the filter's impulse response.
+const FILTER_WINDOW_SIZE: usize = 33; // 128
+/// The length of the FFT window we will use to perform FFT convolution. This includes padding to
+/// prevent time domain aliasing as a result of cyclic convolution.
+const FFT_WINDOW_SIZE: usize = WINDOW_SIZE + FILTER_WINDOW_SIZE - 1;
+
+/// The gain compensation we need to apply for the STFT process.
+const GAIN_COMPENSATION: f32 = 1.0 / FFT_WINDOW_SIZE as f32;
 
 struct Spatializer {
     params: Arc<SpatializerParams>,
-    sofa: Sofar,
+
+    stft: util::StftHelper,
+
+    /// The algorithm for the FFT operation.
+    r2c_plan: Arc<dyn RealToComplex<f32>>,
+    /// The algorithm for the IFFT operation.
+    c2r_plan: Arc<dyn ComplexToReal<f32>>,
+    /// The output of our real->complex FFT.
+    complex_fft_buffer: Vec<Complex32>,
+
+    left_impulse_response_spectrum: Vec<Complex32>,
+    right_impulse_response_spectrum: Vec<Complex32>,
+
+    sofa: Sofar, 
 }
 
 /// The [`Params`] derive macro gathers all of the information needed for the wrapper to know about
@@ -31,30 +55,28 @@ struct SpatializerParams {
     pub frontback: FloatParam,
     #[id = "LeftRight"]
     pub leftright: FloatParam,
-    #[id = "UpDown"]
-    pub updown: FloatParam,
-}
-
-///=============================== Different types of parameters... ===============================///
-#[derive(Params)]
-struct SubParams {
-    #[id = "thing"]
-    pub nested_parameter: FloatParam,
-}
-#[derive(Params)]
-struct ArrayParams {
-    /// This parameter's ID will get a `_1`, `_2`, and a `_3` suffix because of how it's used in
-    /// `array_params` above.
-    #[id = "noope"]
-    pub nope: FloatParam,
 }
 
 ///================================================================================================///
 impl Default for Spatializer {
     fn default() -> Self {
+        let mut planner = RealFftPlanner::new();
+        let r2c_plan = planner.plan_fft_forward(FFT_WINDOW_SIZE);
+        let c2r_plan = planner.plan_fft_inverse(FFT_WINDOW_SIZE);
+        let mut real_fft_buffer = r2c_plan.make_input_vec();
+        let mut complex_fft_buffer = r2c_plan.make_output_vec();
+
         Self {
             params: Arc::new(SpatializerParams::default()),
+            stft: util::StftHelper::new(2, WINDOW_SIZE, FFT_WINDOW_SIZE - WINDOW_SIZE),
+            r2c_plan,
+            c2r_plan,
+            complex_fft_buffer,
+            left_impulse_response_spectrum: vec![Complex32::zero(); FFT_WINDOW_SIZE], // FFT_WINDOW_SIZE
+            right_impulse_response_spectrum: vec![Complex32::zero(); FFT_WINDOW_SIZE],               
+
             sofa: OpenOptions::new().open("/Users/Owen/Documents/GitHub/ase-project/SOFA-data/HRIR_FULL2DEG.sofa").unwrap(),
+
         }
     }
 }
@@ -89,7 +111,7 @@ impl Default for SpatializerParams {
             frontback: FloatParam::new(
                 "Front-Back",
                 0.0,
-                FloatRange::Linear { min: -180.0, max: 180.0 },
+                FloatRange::Linear { min: -360.0, max: 360.0 },
             )
             .with_unit(" deg")
             .with_smoother(SmoothingStyle::Linear(50.0)),
@@ -97,18 +119,10 @@ impl Default for SpatializerParams {
             leftright: FloatParam::new(
                 "Left-Right",
                 0.0,
-                FloatRange::Linear { min: -180.0, max: 180.0 },
+                FloatRange::Linear { min: -360.0, max: 360.0 },
             )
             .with_unit(" deg")
-            .with_smoother(SmoothingStyle::Linear(50.0)),
-
-            updown: FloatParam::new(
-                "Up-Down",
-                0.0,
-                FloatRange::Linear { min: -180.0, max: 180.0 },
-            )
-            .with_unit(" deg")
-            .with_smoother(SmoothingStyle::Linear(50.0)),               
+            .with_smoother(SmoothingStyle::Linear(50.0)),       
 
         }
     }
@@ -138,33 +152,20 @@ impl Plugin for Spatializer {
         },
     ];
 
-    const MIDI_INPUT: MidiConfig = MidiConfig::None;
-    const MIDI_OUTPUT: MidiConfig = MidiConfig::None;
-
     const SAMPLE_ACCURATE_AUTOMATION: bool = true;
 
-    // If the plugin can send or receive SysEx messages, it can define a type to wrap around those
-    // messages here. The type implements the `SysExMessage` trait, which allows conversion to and
-    // from plain byte buffers.
     type SysExMessage = ();
-    // More advanced plugins can use this to run expensive background tasks. See the field's
-    // documentation for more information. `()` means that the plugin does not have any background
-    // tasks.
     type BackgroundTask = ();
 
     fn params(&self) -> Arc<dyn Params> {
         self.params.clone()
     }
 
-    // This plugin doesn't need any special initialization, but if you need to do anything expensive
-    // then this would be the place. State is kept around when the host reconfigures the
-    // plugin. If we do need special initialization, we could implement the `initialize()` and/or
-    // `reset()` methods
     fn initialize(
         &mut self,
         _audio_io_layout: &AudioIOLayout,
         _buffer_config: &BufferConfig,
-        _context: &mut impl InitContext<Self>,
+        context: &mut impl InitContext<Self>,
     ) -> bool {
 
         let sofa = OpenOptions::new()
@@ -173,12 +174,13 @@ impl Plugin for Spatializer {
             .unwrap(); 
         self.sofa = sofa;
         
-        let mut render = Renderer::builder(self.sofa.filter_len())
-            .with_sample_rate(44100.0)
-            .with_partition_len(64)
-            .build()
-            .unwrap();        
+        context.set_latency_samples(self.stft.latency_samples() + (FILTER_WINDOW_SIZE as u32 / 2));
+
         true
+    }    
+
+    fn reset(&mut self) {
+        self.stft.set_block_size(WINDOW_SIZE);
     }    
 
     fn process(
@@ -187,49 +189,112 @@ impl Plugin for Spatializer {
         _aux: &mut AuxiliaryBuffers,
         _context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        // dbg!(buffer.as_slice()[0].len()); // [512; 2]
-
-        let buffer_slice: &mut [&mut [f32]] = buffer.as_slice();
-
-        // Combine the channels with average between corresponding rows
-        let combined_buffer: Vec<_> = buffer_slice[0]
-            .iter()
-            .zip(buffer_slice[1].iter())
-            .map(|(row1, row2)| (*row1 + *row2) / 2.0) // mono_sample.clamp(-1.0, 1.0)
-            .collect();
-        // dbg!(combined_buffer.len());
-
-        let x = self.params.frontback.value() / -180.0 + 0.001;  // front-back
-        let y = self.params.leftright.value() / -180.0 + 0.001;  // right-left
-        let z = self.params.updown.value() / -180.0 + 0.001;     // up-down 
+        
+        let x = self.params.frontback.value() / -360.0 + 0.01; // front-back
+        let y = self.params.leftright.value() / -360.0 + 0.01; // right-left
+        let z = 0.0; // up-down
+    
         let filt_len = self.sofa.filter_len();
         let mut filter = Filter::new(filt_len);
         self.sofa.filter(x, y, z, &mut filter);
+        // let mut left_ir = filter.left;
+        // let mut right_ir = filter.right; 
 
-        let mut render = Renderer::builder(filt_len)
-            .with_sample_rate(44100.0)
-            .with_partition_len(64)
-            .build()
+        let mut left_ir: Vec<f32> = filter.left.into_vec();
+        let mut right_ir: Vec<f32> = filter.right.into_vec();
+        // Resize the impulse response vectors to match the FFT plan size
+        left_ir.resize(FFT_WINDOW_SIZE, 0.0);
+        right_ir.resize(FFT_WINDOW_SIZE, 0.0);
+        let mut left_ir: Box<[f32]> = left_ir.into_boxed_slice();
+        let mut right_ir: Box<[f32]> = right_ir.into_boxed_slice();       
+        
+        // Compute the impulse response spectra
+        self.r2c_plan
+            .process_with_scratch(&mut left_ir, &mut self.left_impulse_response_spectrum, &mut [])
             .unwrap();
-        render.set_filter(&filter);
-
-        let mut left: Vec<f32> = vec![0.0; combined_buffer.len()];
-        let mut right: Vec<f32> = vec![0.0; combined_buffer.len()];
-        render
-            .process_block(&combined_buffer, &mut left, &mut right)
+        self.r2c_plan
+            .process_with_scratch(&mut right_ir, &mut self.right_impulse_response_spectrum, &mut [])
             .unwrap();
 
-        // Modify the buffer in-place
-        buffer_slice[0].copy_from_slice(&left);
-        buffer_slice[1].copy_from_slice(&right);
+        self.stft
+            .process_overlap_add(buffer, 1, |channel_idx, real_fft_buffer| {
+                self.r2c_plan
+                    .process_with_scratch(real_fft_buffer, &mut self.complex_fft_buffer, &mut [])
+                    .unwrap();
+        
+                match channel_idx {
+                    0 => {
+                        // Left channel
+                        for (fft_bin, kernel_bin) in self.complex_fft_buffer
+                            .iter_mut()
+                            .zip(&self.left_impulse_response_spectrum)
+                        {
+                            *fft_bin *= *kernel_bin * GAIN_COMPENSATION;
+                        }
+                    }
+                    1 => {
+                        // Right channel
+                        for (fft_bin, kernel_bin) in self.complex_fft_buffer
+                            .iter_mut()
+                            .zip(&self.right_impulse_response_spectrum)
+                        {
+                            *fft_bin *= *kernel_bin * GAIN_COMPENSATION;
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+        
+                self.c2r_plan
+                    .process_with_scratch(&mut self.complex_fft_buffer, real_fft_buffer, &mut [])
+                    .unwrap();
+            });        
 
-        for channel_samples in buffer.iter_samples() {
-            // Smoothing is optionally built into the parameters themselves
-            let gain = self.params.gain.smoothed.next();
-            for sample in channel_samples {
-                *sample *= gain;
-            }
-        } 
+
+
+        // let buffer_slice: &mut [&mut [f32]] = buffer.as_slice();
+
+        // // Combine the channels with average between corresponding rows
+        // let combined_buffer: Vec<_> = buffer_slice[0]
+        //     .iter()
+        //     .zip(buffer_slice[1].iter())
+        //     .map(|(row1, row2)| (*row1 + *row2) / 2.0) // mono_sample.clamp(-1.0, 1.0)
+        //     .collect();
+
+        // let x = self.params.frontback.value() / -360.0 + 0.01;  // front-back
+        // let y = self.params.leftright.value() / -360.0 + 0.01;  // right-left
+        // let z = 0.0; // up-down 
+        // let filt_len = self.sofa.filter_len();
+        // let mut filter = Filter::new(filt_len);
+        // self.sofa.filter(x, y, z, &mut filter);
+        // let leftIR = filter.left;
+        // let rightIR = filter.right;
+        // dbg!(leftIR.len());
+
+
+        // let mut render = Renderer::builder(filt_len)
+        //     .with_sample_rate(44100.0)
+        //     .with_partition_len(64)
+        //     .build()
+        //     .unwrap();
+        // render.set_filter(&filter);
+
+        // let mut left: Vec<f32> = vec![0.0; combined_buffer.len()];
+        // let mut right: Vec<f32> = vec![0.0; combined_buffer.len()];
+        // render
+        //     .process_block(&combined_buffer, &mut left, &mut right)
+        //     .unwrap();
+
+        // // Modify the buffer in-place
+        // buffer_slice[0].copy_from_slice(&left);
+        // buffer_slice[1].copy_from_slice(&right);
+
+        // for channel_samples in buffer.iter_samples() {
+        //     // Smoothing is optionally built into the parameters themselves
+        //     let gain = self.params.gain.smoothed.next();
+        //     for sample in channel_samples {
+        //         *sample *= gain;
+        //     }
+        // } 
   
         ProcessStatus::Normal
     }
