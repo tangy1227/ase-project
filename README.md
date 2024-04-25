@@ -1,4 +1,4 @@
-# ASE-Project Group 1 Project Proposal / Draft
+# ASE-Project Group 1 Final Project: Rust Spatializer
 
 ## User Documentation
 **Github Pages Link:** [luheehk.github.io](https://luheehk.github.io/) (Including build instructions)
