@@ -5,6 +5,9 @@
 
 **Github Repo Link for User Documentation:** [https://github.com/luheehk/luheehk.github.io.git](https://github.com/luheehk/luheehk.github.io.git)
 
+## Demo Video Link
+[Rust Spatializer GUI Demo Video](https://gtvault-my.sharepoint.com/:v:/g/personal/jxu692_gatech_edu/EZJFZ_ealwZHu_XDWqT99rsBGoKCtSbm-X8n4K45jIl8dQ?e=80Lbvw)
+
 ## Building
 ```shell
 cargo xtask bundle ase-project --release
