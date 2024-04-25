@@ -1,9 +1,9 @@
 # ASE-Project Group 1 Project Proposal / Draft
 
 ## User Documentation
-**Github Pages Link:** [luheehk.github.io](https://luheehk.github.io/)
+**Github Pages Link:** [luheehk.github.io](https://luheehk.github.io/) (Including build instructions)
 
-**Github Repo Link:** [https://github.com/luheehk/luheehk.github.io.git](https://github.com/luheehk/luheehk.github.io.git)
+**Github Repo Link for User Documentation:** [https://github.com/luheehk/luheehk.github.io.git](https://github.com/luheehk/luheehk.github.io.git)
 
 ## Building
 ```shell
