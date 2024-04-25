@@ -1,5 +1,11 @@
 # ASE-Project Group 1 Final Project: Rust Spatializer
 
+## Work Contribution
+SOFA crate: Yilong, Hynkyung(Luhee), Jingyan
+VST: Yilong
+GUI: Jingyan
+User Web Page, Documentation: Hyunkyung(Luhee)
+
 ## User Documentation
 **Github Pages Link:** [luheehk.github.io](https://luheehk.github.io/) (Including build instructions)
 
