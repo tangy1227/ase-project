@@ -6,8 +6,8 @@
 **Github Repo Link for User Documentation:** [luheehk.github.io.git](https://github.com/luheehk/luheehk.github.io.git)
 
 ## Demo Video Link
-**VST ver.:** [Rust Spatializer VST Demo Video](https://drive.google.com/file/d/1zGsT2UuuLcQXRDBh_YgObDkU8e3XNd6d/view?usp=sharing) \
-**GUI ver.:** [Rust Spatializer GUI Demo Video](https://gtvault-my.sharepoint.com/:v:/g/personal/jxu692_gatech_edu/EZJFZ_ealwZHu_XDWqT99rsBGoKCtSbm-X8n4K45jIl8dQ?e=80Lbvw) 
+**VST ver.** [Rust Spatializer VST Demo Video](https://drive.google.com/file/d/1zGsT2UuuLcQXRDBh_YgObDkU8e3XNd6d/view?usp=sharing) \
+**GUI ver.** [Rust Spatializer GUI Demo Video](https://gtvault-my.sharepoint.com/:v:/g/personal/jxu692_gatech_edu/EZJFZ_ealwZHu_XDWqT99rsBGoKCtSbm-X8n4K45jIl8dQ?e=80Lbvw) 
 
 ## Final Presentaion Slides
 [Rust Spatializer Final Project](https://docs.google.com/presentation/d/1x9D-S32Sag_HeM5pHSpubb9oW0WXKnyVbXwKmtpSXD4/edit?usp=sharing)
