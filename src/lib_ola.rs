@@ -1,4 +1,5 @@
-mod spatializer_efx;
+// Attempt to use nih-plug's process_overlap_add function to process convolution
+// Not used for compiling the VST file
 
 use sofar::reader::{Filter, OpenOptions, Sofar};
 use sofar::render::Renderer;

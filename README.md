@@ -37,32 +37,32 @@ We want to design software comparable to the state-of-the-art spatializer dearVR
 
 ## Implementation
 1. Input Audio Processing
-    * Multi-Channel Format Conversion (mono input → stereo output)
-    * Block processing
-        * Overlap and add
-    * OSC input and control
+    * mono input → stereo output
+    * **Block processing**: overlap and add
 
 2. Spatial Rendering
-    * ILD (Interaural Level Differences), ITD (Interaural Time Differences)
     * Filter Processing head related transfer functions (HRTFs), HRTF with room reverb encoded (BRIR)
-        * Extracting measurement from SOFA (spatially oriented format for acoustics) file: https://docs.rs/sofar/latest/sofar/
-        * Process HRTF: https://docs.rs/hrtf/latest/hrtf/
-3. Reverberation Rendering
-4. User Interface Interaction
-    * VST in rust: https://github.com/RustAudio/vst-rs
-    * https://www.seventeencups.net/posts/writing-an-audio-plugin-in-rust/
+      * ILD (Interaural Level Differences), ITD (Interaural Time Differences)
+    * Extracting measurement from SOFA (spatially oriented format for acoustics) file
+      * Spherical Far-Field HRIR Compilation of the Neumann KU100
+      * Over 16,000 IR measurements labeled with spherical coordinates
+      * Rust crate (sofar): https://docs.rs/sofar/latest/sofar/
+  
+3. User Interface Interaction
+    * VST in Reaper
+    * GUUI user can use it offline
 
 ## System Flowchart
-<img src="./fig/system_flowchart.png" alt="flowchart" width="90%"> \
+<img src="./fig/system_flowchart.jpg" alt="flowchart" width="90%"> \
 Reference: [Orbiter](https://github.com/superkittens/Orbiter)
 
 ## References (algorithmic)
-* https://docs.rs/ambisonic/latest/ambisonic/
-* Rust playback library (include spatial audio effect):
-  * https://docs.rs/rodio/latest/rodio/source/struct.Spatial.html
-  * https://docs.rs/kira/latest/kira/spatial/index.html
-* C. Mittag, M. Böhmeand S. Werner, “Dataset of KEMAR-BRIRs measured at several positions and head orientations in a real room”. Zenodo, Dec. 16, 2016. doi: 10.5281/zenodo.206860.
-  * https://zenodo.org/records/206860#.XzygXy0ZNQI
+* SOFA dataset:
+  * Bernschütz, Benjamin. "Spherical far-field HRIR compilation of the Neumann KU100." Proceedings of the 39th Fortschritte der Akustik (DAGA) (2020): 592-595.
+    * https://zenodo.org/records/3928297#.YE6LHWhKiUk
+  * C. Mittag, M. Böhmeand S. Werner, “Dataset of KEMAR-BRIRs measured at several positions and head orientations in a real room”. Zenodo, Dec. 16, 2016. doi: 10.5281/zenodo.206860.
+    * https://zenodo.org/records/206860#.XzygXy0ZNQI
+* SOFA Conventions: https://www.sofaconventions.org/mediawiki/index.php/Software_and_APIs
 
 * Pyroomacoustics: https://pypi.org/project/pyroomacoustics/0.1.4/
 

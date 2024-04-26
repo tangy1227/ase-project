@@ -1,18 +1,14 @@
-mod spatializer_efx;
-
-use realfft::num_traits::Float;
 use sofar::reader::{Filter, OpenOptions, Sofar};
 use sofar::render::Renderer;
 
 use nih_plug::prelude::*;
-use parking_lot::Mutex;
-use std::sync::mpsc::channel;
 use std::sync::Arc;
 
 
 struct Spatializer {
     params: Arc<SpatializerParams>,
     sofa: Sofar,
+    render: Renderer,
 }
 
 /// The [`Params`] derive macro gathers all of the information needed for the wrapper to know about
@@ -35,26 +31,13 @@ struct SpatializerParams {
     pub updown: FloatParam,
 }
 
-///=============================== Different types of parameters... ===============================///
-#[derive(Params)]
-struct SubParams {
-    #[id = "thing"]
-    pub nested_parameter: FloatParam,
-}
-#[derive(Params)]
-struct ArrayParams {
-    /// This parameter's ID will get a `_1`, `_2`, and a `_3` suffix because of how it's used in
-    /// `array_params` above.
-    #[id = "noope"]
-    pub nope: FloatParam,
-}
-
 ///================================================================================================///
 impl Default for Spatializer {
-    fn default() -> Self {
+    fn default() -> Self {      
         Self {
             params: Arc::new(SpatializerParams::default()),
             sofa: OpenOptions::new().open("/Users/Owen/Documents/GitHub/ase-project/SOFA-data/HRIR_FULL2DEG.sofa").unwrap(),
+            render: Renderer::builder(128).build().unwrap(),
         }
     }
 }
@@ -156,10 +139,6 @@ impl Plugin for Spatializer {
         self.params.clone()
     }
 
-    // This plugin doesn't need any special initialization, but if you need to do anything expensive
-    // then this would be the place. State is kept around when the host reconfigures the
-    // plugin. If we do need special initialization, we could implement the `initialize()` and/or
-    // `reset()` methods
     fn initialize(
         &mut self,
         _audio_io_layout: &AudioIOLayout,
@@ -167,17 +146,21 @@ impl Plugin for Spatializer {
         _context: &mut impl InitContext<Self>,
     ) -> bool {
 
+        // load in sofa dataset 
         let sofa = OpenOptions::new()
             .sample_rate(48000.0)
             .open("/Users/Owen/Documents/GitHub/ase-project/SOFA-data/HRIR_FULL2DEG.sofa")
             .unwrap(); 
         self.sofa = sofa;
         
+        // create method for calculating the convolution
         let mut render = Renderer::builder(self.sofa.filter_len())
             .with_sample_rate(44100.0)
             .with_partition_len(64)
             .build()
-            .unwrap();        
+            .unwrap();
+        self.render = render;
+
         true
     }    
 
@@ -187,42 +170,39 @@ impl Plugin for Spatializer {
         _aux: &mut AuxiliaryBuffers,
         _context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        // dbg!(buffer.as_slice()[0].len()); // [512; 2]
 
         let buffer_slice: &mut [&mut [f32]] = buffer.as_slice();
 
-        // Combine the channels with average between corresponding rows
+        // Mono processing: Combine the channels with average between corresponding rows
         let combined_buffer: Vec<_> = buffer_slice[0]
             .iter()
             .zip(buffer_slice[1].iter())
             .map(|(row1, row2)| (*row1 + *row2) / 2.0) // mono_sample.clamp(-1.0, 1.0)
             .collect();
-        // dbg!(combined_buffer.len());
 
+        // The x,y,z parameter only can take in range from -1 to 1
+        // add 0.001 offset because there is no IR at position 0.0, 0.0 , 0.0
         let x = self.params.frontback.value() / -180.0 + 0.001;  // front-back
         let y = self.params.leftright.value() / -180.0 + 0.001;  // right-left
         let z = self.params.updown.value() / -180.0 + 0.001;     // up-down 
         let filt_len = self.sofa.filter_len();
         let mut filter = Filter::new(filt_len);
-        self.sofa.filter(x, y, z, &mut filter);
 
-        let mut render = Renderer::builder(filt_len)
-            .with_sample_rate(44100.0)
-            .with_partition_len(64)
-            .build()
-            .unwrap();
-        render.set_filter(&filter);
+        // extract the IR, both left and right channels
+        self.sofa.filter(x, y, z, &mut filter);
+        
+        // feed IR to render
+        self.render.set_filter(&filter);
 
         let mut left: Vec<f32> = vec![0.0; combined_buffer.len()];
         let mut right: Vec<f32> = vec![0.0; combined_buffer.len()];
-        render
+        self.render
             .process_block(&combined_buffer, &mut left, &mut right)
             .unwrap();
 
         // Modify the buffer in-place
         buffer_slice[0].copy_from_slice(&left);
         buffer_slice[1].copy_from_slice(&right);
-
         for channel_samples in buffer.iter_samples() {
             // Smoothing is optionally built into the parameters themselves
             let gain = self.params.gain.smoothed.next();

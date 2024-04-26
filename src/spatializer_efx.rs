@@ -1,3 +1,5 @@
+// Not used in lib.rs, Only for testing the Sofar crates filter extraction and HRTF convolutions
+
 use sofar::reader::{Filter, OpenOptions, Sofar};
 use sofar::render::Renderer;
 use hound::{WavReader, WavWriter};
