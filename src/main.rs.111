@@ -19,6 +19,8 @@ const ROTATION: f32 = 2.0 / 180.0 * std::f32::consts::PI;
 const BLOCK_LEN: usize = 1024;
 
 fn main() -> Result<(), Error> {
+    println!("Running from main.rs");
+    
     let args: Vec<String> = env::args().collect();
 
     if args.len() != 3 {
@@ -143,13 +145,13 @@ where
 
     thread::spawn(move || {
         let mut x = 1.0;
-        let mut y = 0.0;
-        let z = 0.0;
+        let mut y = 3.0;
+        let z = -5.0;
 
         loop {
             // rotate clockwise: https://en.wikipedia.org/wiki/Rotation_matrix
-            x = x * f32::cos(ROTATION) + y * f32::sin(ROTATION);
-            y = -x * f32::sin(ROTATION) + y * f32::cos(ROTATION);
+            //x = x * f32::cos(ROTATION) + y * f32::sin(ROTATION);
+            //y = -x * f32::sin(ROTATION) + y * f32::cos(ROTATION);
 
             println!("Pos: x: {x}, y: {y}");
 

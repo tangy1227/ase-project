@@ -4,8 +4,8 @@ use cpal::{BufferSize, StreamConfig};
 use anyhow::{bail, Context, Error};
 use hound::WavReader;
 
-use proj::reader::{Filter, OpenOptions, Sofar};
-use proj::render::Renderer;
+use sofar::reader::{Filter, OpenOptions, Sofar};
+use sofar::render::Renderer;
 
 use ringbuf::HeapRb;
 

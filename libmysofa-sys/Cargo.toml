@@ -1,0 +1,23 @@
+[package]
+name = "libmysofa-sys"
+version = "0.1.5"
+edition = "2021"
+links = "mysofa"
+build = "build.rs"
+license = "MIT"
+repository = "https://github.com/andreiltd/sofar"
+homepage = "https://github.com/andreiltd/sofar"
+description = "Low level binding for libmysofa library"
+authors = ["Tomasz Andrzejak <andreiltd@gmail.com>"]
+categories = ["external-ffi-bindings"]
+exclude = ["libmysofa/tests"]
+
+[dependencies]
+libz-sys = { version = "1.1", default-features = false, features = ["static", "libc"] }
+
+[build-dependencies]
+cmake = "0.1"
+system-deps = "6.1"
+
+[package.metadata.system-deps]
+libmysofa = "1"

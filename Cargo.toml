@@ -1,23 +1,24 @@
-workspace = { members = ["xtask"] }
-
 [package]
-name = "ase-project"
+name = "proj"
 version = "0.1.0"
 edition = "2021"
-description = "Spatializer Plugin for Audio Software Engineering."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[features]
-dsp = []
 
-[lib]
-crate-type = ["cdylib"]
+[features]
+default = ["dsp"]
+dsp = ["dep:realfft"]
+egui_extras = ["default"]
+
+[workspace]
+members = ["libmysofa-sys"]
+
 
 [dependencies]
-nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["assert_process_allocs"] }
-hrtf = "0.8.1"
-sofar = "=0.1.6"
+ffi = { package = "libmysofa-sys", version = "0.1", path = "libmysofa-sys" }
+realfft = {version = "3.2", optional = true}
+thiserror = "1"
 anyhow = "1.0"
 assert_approx_eq = "1.1"
 hound = "3.5"
@@ -25,10 +26,26 @@ cpal = "0.15"
 criterion = "0.4"
 rand = "0.8"
 ringbuf = "0.3"
-parking_lot = "0.12"
-realfft = "3.3.0"
+egui = "0.27.2"
+eframe = "0.27.2"
+egui_extras = {version = "0.27.2", features = ["default", "image"]}
+rfd = "0.13"
+
+[dev-dependencies]
+anyhow = "1.0"
+assert_approx_eq = "1.1"
+hound = "3.5"
+cpal = "0.15"
+criterion = "0.4"
+rand = "0.8"
+ringbuf = "0.3"
+egui_extras = "0.27.2"
+
+[[bench]]
+name = "renderer"
+harness = false
+required-features = ["dsp"]
 
 [[example]]
 name = "renderer"
-
-
+required-features = ["dsp"]

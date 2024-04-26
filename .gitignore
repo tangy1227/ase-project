@@ -2,3 +2,5 @@
 .vscode
 
 *.DS_Store
+
+libmysofa-sys/libmysofa/tests_sofa
