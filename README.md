@@ -18,10 +18,13 @@
 ## Final Presentaion Slides
 [Rust Spatializer Final Project](https://docs.google.com/presentation/d/1x9D-S32Sag_HeM5pHSpubb9oW0WXKnyVbXwKmtpSXD4/edit?usp=sharing)
 
-## Building
+## Building the VST file
 ```shell
 cargo xtask bundle ase-project --release
 ```
+
+## Note
+The main branch contains codes for VST implementation, and the GUI branch contains codes for GUI implementation
 
 ## Motivation
 Spatial audio enhances listeners' experiences, providing a more realistic and immersive audio environment. This technology holds the potential to benefit listeners across various industries. As more advanced spatial computing emerges, spatial audio becomes instrumental in elevating the user experience of these products even further.
