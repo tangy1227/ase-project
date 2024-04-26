@@ -1,13 +1,22 @@
 # ASE-Project Group 1 Final Project: Rust Spatializer
 
+## Work Contribution
+**SOFA crate:** Yilong, Hynkyung(Luhee), Jingyan\
+**VST:** Yilong\
+**GUI:** Jingyan\
+**User Web Page, Documentation:** Hyunkyung(Luhee)
+
 ## User Documentation
 **Github Pages Link:** [luheehk.github.io](https://luheehk.github.io/) (Including build instructions)
 
-**Github Repo Link for User Documentation:** [https://github.com/luheehk/luheehk.github.io.git](https://github.com/luheehk/luheehk.github.io.git)
+**Github Repo Link for User Documentation:** [luheehk.github.io.git](https://github.com/luheehk/luheehk.github.io.git)
 
 ## Demo Video Link
-[Rust Spatializer GUI Demo Video](https://gtvault-my.sharepoint.com/:v:/g/personal/jxu692_gatech_edu/EZJFZ_ealwZHu_XDWqT99rsBGoKCtSbm-X8n4K45jIl8dQ?e=80Lbvw) \
-[Rust Spatializer VST Demo Video](https://drive.google.com/file/d/1zGsT2UuuLcQXRDBh_YgObDkU8e3XNd6d/view?usp=sharing)
+**VST ver.** [Rust Spatializer VST Demo Video](https://drive.google.com/file/d/1zGsT2UuuLcQXRDBh_YgObDkU8e3XNd6d/view?usp=sharing) \
+**GUI ver.** [Rust Spatializer GUI Demo Video](https://gtvault-my.sharepoint.com/:v:/g/personal/jxu692_gatech_edu/EZJFZ_ealwZHu_XDWqT99rsBGoKCtSbm-X8n4K45jIl8dQ?e=80Lbvw) 
+
+## Final Presentaion Slides
+[Rust Spatializer Final Project](https://docs.google.com/presentation/d/1x9D-S32Sag_HeM5pHSpubb9oW0WXKnyVbXwKmtpSXD4/edit?usp=sharing)
 
 ## Building
 ```shell
