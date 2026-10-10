@@ -1,4 +1,4 @@
-workspace = { members = ["xtask"] }
+workspace = { members = ["xtask", "ui"] }
 
 [package]
 name = "ase-project"
@@ -17,7 +17,7 @@ crate-type = ["cdylib"]
 [dependencies]
 nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["assert_process_allocs"] }
 hrtf = "0.8.1"
-sofar = "=0.1.6"
+sofar = "0.3"
 anyhow = "1.0"
 assert_approx_eq = "1.1"
 hound = "3.5"

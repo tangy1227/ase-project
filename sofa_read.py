@@ -1,5 +1,8 @@
 # pip install sofar
+import os
 import sofar as sf
+
+_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'SOFA-data')
 
 def read_sofa(path):
     sofa_read = sf.read_sofa(path, verify=False)
@@ -20,14 +23,14 @@ def read_sofa(path):
     print(rec_pos.shape)       
 
 if __name__ == "__main__":
-    path_spherical = '/Users/Owen/Documents/GitHub/ase-project/SOFA-data/HRIR_FULL2DEG.sofa'
+    path_spherical = os.path.join(_DATA_DIR, 'HRIR_FULL2DEG.sofa')
     # HRIR_FULL2DEG: 
     #   sample number: 128
     #   two degree azimuth change from 0 deg to 358 deg; 
     #   two degree elevation change from 90 deg to -90 deg; 
     #   The distance is alwasy 3.25
 
-    path_cartesian = '/Users/Owen/Documents/GitHub/ase-project/SOFA-data/BRIR_Audimax_LSC_KU100_P2_circ360.sofa'
+    path_cartesian = os.path.join(_DATA_DIR, 'BRIR_Audimax_LSC_KU100_P2_circ360.sofa')
 
     read_sofa(path_spherical)
     # read_sofa(path_cartesian)

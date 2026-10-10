@@ -11,6 +11,10 @@ use realfft::num_traits::Zero;
 use std::f32;
 use std::sync::Arc;
 
+/// Absolute path to the bundled SOFA HRIR dataset, resolved at compile time relative to the crate
+/// root (via `CARGO_MANIFEST_DIR`) so the plugin loads regardless of the host's working directory.
+const SOFA_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/SOFA-data/HRIR_FULL2DEG.sofa");
+
 /// The size of the windows we'll process at a time.
 const WINDOW_SIZE: usize = 64;
 /// The length of the filter's impulse response.
@@ -76,7 +80,7 @@ impl Default for Spatializer {
             left_impulse_response_spectrum: vec![Complex32::zero(); FFT_WINDOW_SIZE], // FFT_WINDOW_SIZE
             right_impulse_response_spectrum: vec![Complex32::zero(); FFT_WINDOW_SIZE],               
 
-            sofa: OpenOptions::new().open("/Users/Owen/Documents/GitHub/ase-project/SOFA-data/HRIR_FULL2DEG.sofa").unwrap(),
+            sofa: OpenOptions::new().open(SOFA_PATH).unwrap(),
 
         }
     }
@@ -165,14 +169,14 @@ impl Plugin for Spatializer {
     fn initialize(
         &mut self,
         _audio_io_layout: &AudioIOLayout,
-        _buffer_config: &BufferConfig,
+        buffer_config: &BufferConfig,
         context: &mut impl InitContext<Self>,
     ) -> bool {
 
         let sofa = OpenOptions::new()
-            .sample_rate(48000.0)
-            .open("/Users/Owen/Documents/GitHub/ase-project/SOFA-data/HRIR_FULL2DEG.sofa")
-            .unwrap(); 
+            .sample_rate(buffer_config.sample_rate)
+            .open(SOFA_PATH)
+            .unwrap();
         self.sofa = sofa;
         
         context.set_latency_samples(self.stft.latency_samples() + (FILTER_WINDOW_SIZE as u32 / 2));

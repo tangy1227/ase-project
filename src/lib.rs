@@ -4,6 +4,9 @@ use sofar::render::Renderer;
 use nih_plug::prelude::*;
 use std::sync::Arc;
 
+/// Absolute path to the bundled SOFA HRIR dataset, resolved at compile time relative to the crate
+/// root (via `CARGO_MANIFEST_DIR`) so the plugin loads regardless of the host's working directory.
+const SOFA_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/SOFA-data/HRIR_FULL2DEG.sofa");
 
 struct Spatializer {
     params: Arc<SpatializerParams>,
@@ -36,7 +39,7 @@ impl Default for Spatializer {
     fn default() -> Self {      
         Self {
             params: Arc::new(SpatializerParams::default()),
-            sofa: OpenOptions::new().open("/Users/Owen/Documents/GitHub/ase-project/SOFA-data/HRIR_FULL2DEG.sofa").unwrap(),
+            sofa: OpenOptions::new().open(SOFA_PATH).unwrap(),
             render: Renderer::builder(128).build().unwrap(),
         }
     }
@@ -142,27 +145,31 @@ impl Plugin for Spatializer {
     fn initialize(
         &mut self,
         _audio_io_layout: &AudioIOLayout,
-        _buffer_config: &BufferConfig,
+        buffer_config: &BufferConfig,
         _context: &mut impl InitContext<Self>,
     ) -> bool {
+        // Match both the HRIR set and the convolution renderer to the host's actual sample rate.
+        // sofar resamples the impulse responses to this rate on load, and the renderer must run at
+        // the same rate as the audio stream it processes.
+        let sample_rate = buffer_config.sample_rate;
 
-        // load in sofa dataset 
+        // load in sofa dataset
         let sofa = OpenOptions::new()
-            .sample_rate(48000.0)
-            .open("/Users/Owen/Documents/GitHub/ase-project/SOFA-data/HRIR_FULL2DEG.sofa")
-            .unwrap(); 
+            .sample_rate(sample_rate)
+            .open(SOFA_PATH)
+            .unwrap();
         self.sofa = sofa;
-        
+
         // create method for calculating the convolution
-        let mut render = Renderer::builder(self.sofa.filter_len())
-            .with_sample_rate(44100.0)
+        let render = Renderer::builder(self.sofa.filter_len())
+            .with_sample_rate(sample_rate)
             .with_partition_len(64)
             .build()
             .unwrap();
         self.render = render;
 
         true
-    }    
+    }
 
     fn process(
         &mut self,
@@ -191,8 +198,10 @@ impl Plugin for Spatializer {
         // extract the IR, both left and right channels
         self.sofa.filter(x, y, z, &mut filter);
         
-        // feed IR to render
-        self.render.set_filter(&filter);
+        // feed IR to render. The filter and renderer are both sized from `self.sofa.filter_len()`,
+        // so set_filter only errors on a length mismatch that cannot occur here. Ignore the result
+        // rather than `unwrap()` to stay real-time-safe (no panics on the audio thread).
+        let _ = self.render.set_filter(&filter);
 
         let mut left: Vec<f32> = vec![0.0; combined_buffer.len()];
         let mut right: Vec<f32> = vec![0.0; combined_buffer.len()];

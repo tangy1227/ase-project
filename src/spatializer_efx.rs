@@ -83,13 +83,17 @@ mod tests{
     use rand::prelude::*;
     use std::time::Instant;
 
+    /// Paths to bundled test assets, resolved at compile time relative to the crate root.
+    const SOFA_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/SOFA-data/HRIR_FULL2DEG.sofa");
+    const MELODY_WAV_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/audio/Melody_mono.wav");
+
     #[test]
     fn test_audio() {
         let x = 0.0; // front-back
         let y = -1.0; // left-right
         let z = 0.0; // up-down
         // let sample_rate_hz = 48000.0;
-        let mut reader = WavReader::open("/Users/Owen/Documents/GitHub/ase-project/audio/Melody_mono.wav").unwrap();
+        let mut reader = WavReader::open(MELODY_WAV_PATH).unwrap();
         let spec = reader.spec();
         dbg!(spec.sample_rate);
 
@@ -111,7 +115,7 @@ mod tests{
         let start_time = Instant::now(); // Start timing
         let sofa = OpenOptions::new()
             .sample_rate(48000.0)
-            .open("/Users/Owen/Documents/GitHub/ase-project/SOFA-data/HRIR_FULL2DEG.sofa")
+            .open(SOFA_PATH)
             .unwrap();
         let end_time = Instant::now(); // End timing
         let elapsed_time = end_time - start_time;

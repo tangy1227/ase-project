@@ -1,0 +1,16 @@
+[package]
+name = "spatializer-ui"
+version = "0.1.0"
+edition = "2021"
+description = "Framework-agnostic egui widgets and design tokens for the spatializer plugin UI."
+publish = false
+
+[dependencies]
+egui = "0.36"
+
+[dev-dependencies]
+# Standalone runner only. The plugin will host the same widgets through nice-plug-egui.
+eframe = { version = "0.36", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }
+
+[[example]]
+name = "position_widget"
