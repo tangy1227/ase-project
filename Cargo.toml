@@ -2,7 +2,7 @@ workspace = { members = ["xtask", "ui"] }
 
 [package]
 name = "ase-project"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Spatializer Plugin for Audio Software Engineering."
 
@@ -27,8 +27,17 @@ rand = "0.8"
 ringbuf = "0.3"
 parking_lot = "0.12"
 realfft = "3.3.0"
+# Editor: the widget crate plus egui-baseview 0.7, which shares its egui version (0.36).
+spatializer-ui = { path = "ui" }
+egui = "0.36"
+egui-baseview = "0.7"
+raw-window-handle = "0.6"
 
 [[example]]
 name = "renderer"
 
 
+
+[target.'cfg(windows)'.dev-dependencies]
+# Editor smoke test (src/editor_smoke.rs): a parent window, a message loop and a screen grab.
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging"] }

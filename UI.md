@@ -269,24 +269,27 @@ cargo test -p spatializer-ui                                               # 4 m
 5. Resize the window down to 400 × 300: readout stays readable, ring labels disappear, nothing overlaps.
 6. Toggle Light/Dark: both should look designed, not inverted.
 
-### Wiring it into the plugin (not done; ~1 day after the nice-plug migration)
+### Wiring it into the plugin (done in 0.2.0, `src/editor.rs`)
 
-```rust
-// in the plugin crate, once params are azimuth/elevation/distance (ROADMAP A3)
-struct ParamHost<'a> { params: &'a SpatializerParams, setter: &'a ParamSetter<'a> }
-impl PositionHost for ParamHost<'_> {
-    fn azimuth(&self) -> f32 { self.params.azimuth.value() }
-    fn elevation(&self) -> f32 { self.params.elevation.value() }
-    fn distance(&self) -> f32 { self.params.distance.value() }
-    fn set(&mut self, p: PosParam, v: f32) { self.setter.set_parameter(self.param(p), v) }
-    fn begin_gesture(&mut self, p: PosParam) { self.setter.begin_set_parameter(self.param(p)) }
-    fn end_gesture(&mut self, p: PosParam) { self.setter.end_set_parameter(self.param(p)) }
-}
-// NiceEguiApp::ui: Tokens::install once in build(); then
-//   PositionPad::new("pad", &mut host).level(peak.load(Relaxed)).show(ui);
-//   ElevationStrip::new("el", &mut host).show(ui);
-// Meter: Arc<AtomicF32> written in process() with store(Relaxed); RepaintNotifier for wake-ups.
-```
+The plan above assumed a nice-plug migration first. The plugin instead stays on nih-plug and
+implements nih-plug's `Editor` trait directly on **egui-baseview 0.7** (the same egui 0.36 as this
+crate), because `nih_plug_egui` at the pinned commit is on egui 0.31. That gives the widgets an
+unmodified egui 0.36 inside the host, `RepaintNotifier` wake-ups (the audio thread pokes it while
+the meter moves; parameter changes from the host poke it too) and no forced per-frame repaint.
+Host-driven resize is still unavailable (nih-plug's VST3 wrapper refuses it), so the window is a
+fixed 640 × 440 logical px, scaled by the host's content scale factor.
+
+- `ParamHost` implements `PositionHost` over `ParamSetter`: azimuth and elevation map to the new
+  parameters (ROADMAP A3 landed with it); distance is not a parameter yet, so the pad runs with
+  `distance_enabled(false)` and the readout drops the distance.
+- The two ghost dots are the left and right input channels (`azimuth ± width/2`), drawn with
+  `select_others(false)` so clicking near one places the source instead of selecting it.
+- The right rail has Width and Gain sliders written for the editor (same rules as the pad: Shift
+  fine, double-click reset, every change a begin/set/end gesture) and an output level meter.
+- `frame.set_key_capture(KeyCapture::IgnoreAll)`: the host keeps its keyboard shortcuts.
+- Verified with `cargo test --release -p ase-project editor_smoke -- --ignored` on Windows at
+  125 % scaling: the editor fills exactly the frame size reported to the host, and a click on the
+  pad reaches the host as one `begin`/`set`/`end` with the expected azimuth.
 
 Known gaps in the slice: no header chips (SOFA/tracking/output are mocked as checkboxes), no
 right-rail source list, no room, selection of ghost sources is reported but not acted on, and the

@@ -1,17 +1,33 @@
-use sofar::reader::{Filter, OpenOptions, Sofar};
-use sofar::render::Renderer;
+use sofar::reader::OpenOptions;
 
 use nih_plug::prelude::*;
+use spatializer_ui::{format_azimuth, format_elevation};
 use std::sync::Arc;
+
+mod dsp;
+mod editor;
+#[cfg(all(test, windows))]
+mod editor_smoke;
+
+use dsp::{Engine, Position};
+use editor::EditorShared;
 
 /// Absolute path to the bundled SOFA HRIR dataset, resolved at compile time relative to the crate
 /// root (via `CARGO_MANIFEST_DIR`) so the plugin loads regardless of the host's working directory.
 const SOFA_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/SOFA-data/HRIR_FULL2DEG.sofa");
 
+/// Time for the editor's peak meter to fall by 12 dB after the signal stops.
+const PEAK_METER_DECAY_MS: f64 = 150.0;
+
 struct Spatializer {
     params: Arc<SpatializerParams>,
-    sofa: Sofar,
-    render: Renderer,
+    /// Built in `initialize()`; loading the SOFA set takes ~650 ms, so it is not done in
+    /// `Default` (which hosts also call while scanning plugins).
+    engine: Option<Engine>,
+    /// Output peak for the editor's meter, linear gain.
+    peak_meter: Arc<AtomicF32>,
+    peak_meter_decay_weight: f32,
+    editor: Arc<EditorShared>,
 }
 
 /// The [`Params`] derive macro gathers all of the information needed for the wrapper to know about
@@ -19,28 +35,34 @@ struct Spatializer {
 /// also easily implement [`Params`] by hand if you want to, for instance, have multiple instances
 /// of a parameters struct for multiple identical oscillators/filters/envelopes.
 #[derive(Params)]
-struct SpatializerParams {
+pub struct SpatializerParams {
     /// The parameter's ID is used to identify the parameter in the wrapped plugin API. As long as
     /// these IDs remain constant, you can rename and reorder these fields as you wish. The
     /// parameters are exposed to the host in the same order they were defined. In this case, this
     /// gain parameter is stored as linear gain while the values are displayed in decibels.
     #[id = "gain"]
     pub gain: FloatParam,
-    #[id = "FrontBack"]
-    pub frontback: FloatParam,
-    #[id = "LeftRight"]
-    pub leftright: FloatParam,
-    #[id = "UpDown"]
-    pub updown: FloatParam,
+    /// Degrees, positive = left (SOFA convention). Replaces the old `FrontBack`/`LeftRight`/
+    /// `UpDown` parameters, which were Cartesian coordinates mislabelled as degrees.
+    #[id = "azimuth"]
+    pub azimuth: FloatParam,
+    /// Degrees, positive = up.
+    #[id = "elevation"]
+    pub elevation: FloatParam,
+    /// Angle between the virtual sources of the left and right input channels.
+    #[id = "width"]
+    pub width: FloatParam,
 }
 
 ///================================================================================================///
 impl Default for Spatializer {
-    fn default() -> Self {      
+    fn default() -> Self {
         Self {
             params: Arc::new(SpatializerParams::default()),
-            sofa: OpenOptions::new().open(SOFA_PATH).unwrap(),
-            render: Renderer::builder(128).build().unwrap(),
+            engine: None,
+            peak_meter: Arc::new(AtomicF32::new(0.0)),
+            peak_meter_decay_weight: 1.0,
+            editor: Arc::new(EditorShared::default()),
         }
     }
 }
@@ -72,32 +94,60 @@ impl Default for SpatializerParams {
             .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
 
-            frontback: FloatParam::new(
-                "Front-Back",
+            // Position changes are crossfaded inside the engine, so these need no smoother (a
+            // linear smoother would also take the long way round across ±180°).
+            azimuth: FloatParam::new(
+                "Azimuth",
                 0.0,
                 FloatRange::Linear { min: -180.0, max: 180.0 },
             )
-            .with_unit(" deg")
-            .with_smoother(SmoothingStyle::Linear(50.0)),
+            .with_value_to_string(Arc::new(format_azimuth))
+            .with_string_to_value(Arc::new(parse_azimuth)),
 
-            leftright: FloatParam::new(
-                "Left-Right",
+            elevation: FloatParam::new(
+                "Elevation",
                 0.0,
-                FloatRange::Linear { min: -180.0, max: 180.0 },
+                FloatRange::Linear { min: -90.0, max: 90.0 },
             )
-            .with_unit(" deg")
-            .with_smoother(SmoothingStyle::Linear(50.0)),
+            .with_value_to_string(Arc::new(format_elevation))
+            .with_string_to_value(Arc::new(parse_elevation)),
 
-            updown: FloatParam::new(
-                "Up-Down",
-                0.0,
-                FloatRange::Linear { min: -180.0, max: 180.0 },
-            )
-            .with_unit(" deg")
-            .with_smoother(SmoothingStyle::Linear(50.0)),               
-
+            // 60° puts L and R at ±30°, the standard stereo loudspeaker angle.
+            width: FloatParam::new("Width", 60.0, FloatRange::Linear { min: 0.0, max: 180.0 })
+                .with_unit("°")
+                .with_value_to_string(formatters::v2s_f32_rounded(0)),
         }
     }
+}
+
+impl SpatializerParams {
+    pub fn position(&self) -> Position {
+        Position {
+            azimuth: self.azimuth.value(),
+            elevation: self.elevation.value(),
+            width: self.width.value(),
+        }
+    }
+}
+
+/// Accepts what `format_azimuth` prints ("30° L", "30° R", "0° F", "180° B") as well as plain
+/// signed numbers in the SOFA convention ("30" = left, "-30" = right).
+fn parse_azimuth(s: &str) -> Option<f32> {
+    let s = s.trim().to_ascii_uppercase();
+    let (number, sign) = match s.chars().last()? {
+        'L' | 'F' | 'B' => (&s[..s.len() - 1], 1.0),
+        'R' => (&s[..s.len() - 1], -1.0),
+        _ => (s.as_str(), 1.0),
+    };
+    parse_degrees(number).map(|v| sign * v)
+}
+
+fn parse_elevation(s: &str) -> Option<f32> {
+    parse_degrees(s)
+}
+
+fn parse_degrees(s: &str) -> Option<f32> {
+    s.trim().trim_end_matches('°').trim().replace('\u{2212}', "-").parse().ok()
 }
 
 impl Plugin for Spatializer {
@@ -127,6 +177,7 @@ impl Plugin for Spatializer {
     const MIDI_INPUT: MidiConfig = MidiConfig::None;
     const MIDI_OUTPUT: MidiConfig = MidiConfig::None;
 
+    // Safe now that the engine buffers into fixed hops: sub-blocks of any length are fine.
     const SAMPLE_ACCURATE_AUTOMATION: bool = true;
 
     // If the plugin can send or receive SysEx messages, it can define a type to wrap around those
@@ -142,33 +193,50 @@ impl Plugin for Spatializer {
         self.params.clone()
     }
 
+    fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
+        editor::create(self.params.clone(), self.peak_meter.clone(), self.editor.clone())
+    }
+
     fn initialize(
         &mut self,
         _audio_io_layout: &AudioIOLayout,
         buffer_config: &BufferConfig,
-        _context: &mut impl InitContext<Self>,
+        context: &mut impl InitContext<Self>,
     ) -> bool {
-        // Match both the HRIR set and the convolution renderer to the host's actual sample rate.
-        // sofar resamples the impulse responses to this rate on load, and the renderer must run at
-        // the same rate as the audio stream it processes.
+        // Match the HRIR set and the convolution renderers to the host's actual sample rate.
+        // sofar resamples the impulse responses to this rate on load.
         let sample_rate = buffer_config.sample_rate;
 
-        // load in sofa dataset
-        let sofa = OpenOptions::new()
-            .sample_rate(sample_rate)
-            .open(SOFA_PATH)
-            .unwrap();
-        self.sofa = sofa;
+        // Hosts may call this several times in a row (e.g. while restoring state); only reload
+        // the dataset when the rate actually changed.
+        if self.engine.as_ref().map(Engine::sample_rate) != Some(sample_rate) {
+            let engine = OpenOptions::new()
+                .sample_rate(sample_rate)
+                .open(SOFA_PATH)
+                .map_err(|e| e.to_string())
+                .and_then(Engine::new);
+            match engine {
+                Ok(engine) => self.engine = Some(engine),
+                Err(err) => {
+                    nih_error!("failed to load the HRIR set from {SOFA_PATH}: {err}");
+                    self.engine = None;
+                    return false;
+                }
+            }
+        }
 
-        // create method for calculating the convolution
-        let render = Renderer::builder(self.sofa.filter_len())
-            .with_sample_rate(sample_rate)
-            .with_partition_len(64)
-            .build()
-            .unwrap();
-        self.render = render;
+        context.set_latency_samples(dsp::HOP as u32);
+        self.peak_meter_decay_weight = 0.25f64
+            .powf((sample_rate as f64 * PEAK_METER_DECAY_MS / 1000.0).recip())
+            as f32;
 
         true
+    }
+
+    fn reset(&mut self) {
+        if let Some(engine) = self.engine.as_mut() {
+            engine.reset();
+        }
     }
 
     fn process(
@@ -177,49 +245,43 @@ impl Plugin for Spatializer {
         _aux: &mut AuxiliaryBuffers,
         _context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
+        let Some(engine) = self.engine.as_mut() else {
+            return ProcessStatus::Normal;
+        };
 
-        let buffer_slice: &mut [&mut [f32]] = buffer.as_slice();
+        if let [left, right] = buffer.as_slice() {
+            engine.process(left, right, self.params.position());
+        }
 
-        // Mono processing: Combine the channels with average between corresponding rows
-        let combined_buffer: Vec<_> = buffer_slice[0]
-            .iter()
-            .zip(buffer_slice[1].iter())
-            .map(|(row1, row2)| (*row1 + *row2) / 2.0) // mono_sample.clamp(-1.0, 1.0)
-            .collect();
-
-        // The x,y,z parameter only can take in range from -1 to 1
-        // add 0.001 offset because there is no IR at position 0.0, 0.0 , 0.0
-        let x = self.params.frontback.value() / -180.0 + 0.001;  // front-back
-        let y = self.params.leftright.value() / -180.0 + 0.001;  // right-left
-        let z = self.params.updown.value() / -180.0 + 0.001;     // up-down 
-        let filt_len = self.sofa.filter_len();
-        let mut filter = Filter::new(filt_len);
-
-        // extract the IR, both left and right channels
-        self.sofa.filter(x, y, z, &mut filter);
-        
-        // feed IR to render. The filter and renderer are both sized from `self.sofa.filter_len()`,
-        // so set_filter only errors on a length mismatch that cannot occur here. Ignore the result
-        // rather than `unwrap()` to stay real-time-safe (no panics on the audio thread).
-        let _ = self.render.set_filter(&filter);
-
-        let mut left: Vec<f32> = vec![0.0; combined_buffer.len()];
-        let mut right: Vec<f32> = vec![0.0; combined_buffer.len()];
-        self.render
-            .process_block(&combined_buffer, &mut left, &mut right)
-            .unwrap();
-
-        // Modify the buffer in-place
-        buffer_slice[0].copy_from_slice(&left);
-        buffer_slice[1].copy_from_slice(&right);
+        let editor_open = self.editor.is_open();
+        let mut peak = self.peak_meter.load(std::sync::atomic::Ordering::Relaxed);
         for channel_samples in buffer.iter_samples() {
             // Smoothing is optionally built into the parameters themselves
             let gain = self.params.gain.smoothed.next();
+            let mut amplitude = 0.0f32;
             for sample in channel_samples {
                 *sample *= gain;
+                amplitude = amplitude.max(sample.abs());
             }
-        } 
-  
+
+            if editor_open {
+                peak = if amplitude > peak {
+                    amplitude
+                } else {
+                    peak * self.peak_meter_decay_weight
+                        + amplitude * (1.0 - self.peak_meter_decay_weight)
+                };
+            }
+        }
+
+        if editor_open {
+            let previous = self.peak_meter.swap(peak, std::sync::atomic::Ordering::Relaxed);
+            // Only wake the GUI while the meter is visibly moving (-80 dBFS floor).
+            if peak > 1e-4 || previous > 1e-4 {
+                self.editor.request_repaint();
+            }
+        }
+
         ProcessStatus::Normal
     }
 
@@ -249,3 +311,25 @@ impl Vst3Plugin for Spatializer {
 
 nih_export_clap!(Spatializer);
 nih_export_vst3!(Spatializer);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn azimuth_strings_round_trip() {
+        for v in [-180.0f32, -90.0, -30.0, 0.0, 30.0, 90.0, 180.0] {
+            let parsed = parse_azimuth(&format_azimuth(v)).unwrap();
+            assert!((parsed - v).abs() < 1e-3 || (v.abs() == 180.0 && parsed == 180.0), "{v} -> {parsed}");
+        }
+        assert_eq!(parse_azimuth("-45"), Some(-45.0));
+        assert_eq!(parse_azimuth("45 r"), Some(-45.0));
+    }
+
+    #[test]
+    fn elevation_strings_round_trip() {
+        for v in [-90.0f32, -10.0, 0.0, 10.0, 90.0] {
+            assert_eq!(parse_elevation(&format_elevation(v)), Some(v));
+        }
+    }
+}

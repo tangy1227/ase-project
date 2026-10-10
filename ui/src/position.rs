@@ -159,6 +159,7 @@ pub struct PositionPad<'a> {
     clipping: bool,
     head_yaw: Option<f32>,
     distance_enabled: bool,
+    select_others: bool,
     color_index: usize,
     size: Option<f32>,
 }
@@ -174,12 +175,13 @@ impl<'a> PositionPad<'a> {
             clipping: false,
             head_yaw: None,
             distance_enabled: false,
+            select_others: true,
             color_index: 0,
             size: None,
         }
     }
 
-    /// Other sources to draw as ghosts (selectable by click).
+    /// Other sources to draw as ghosts (selectable by click unless [`Self::select_others`] is off).
     pub fn others(mut self, others: &'a [SourceView]) -> Self {
         self.others = others;
         self
@@ -214,6 +216,13 @@ impl<'a> PositionPad<'a> {
         self
     }
 
+    /// When false, ghosts are display-only: clicking one places the active source there instead of
+    /// reporting `selected_other`. Use this for markers derived from the active source itself.
+    pub fn select_others(mut self, selectable: bool) -> Self {
+        self.select_others = selectable;
+        self
+    }
+
     pub fn color_index(mut self, index: usize) -> Self {
         self.color_index = index;
         self
@@ -226,7 +235,7 @@ impl<'a> PositionPad<'a> {
     }
 
     pub fn show(self, ui: &mut Ui) -> PadResponse {
-        let PositionPad { id, host, others, label, level, clipping, head_yaw, distance_enabled, color_index, size } = self;
+        let PositionPad { id, host, others, label, level, clipping, head_yaw, distance_enabled, select_others, color_index, size } = self;
         let tokens = Tokens::get(ui.ctx());
         let p = tokens.palette;
         let st = tokens.strokes;
@@ -266,7 +275,12 @@ impl<'a> PositionPad<'a> {
         let mut selected_other = None;
 
         let other_pos = |o: &SourceView| c + az_to_dir(o.azimuth) * dist_to_px(o.distance);
-        let hit_other = |pos: Pos2| others.iter().position(|o| (other_pos(o) - pos).length() <= tokens.space(1.5));
+        let hit_other = |pos: Pos2| {
+            if !select_others {
+                return None;
+            }
+            others.iter().position(|o| (other_pos(o) - pos).length() <= tokens.space(1.5))
+        };
 
         // ---------------------------------------------------------------- interaction
         if response.double_clicked() || (response.clicked() && mods.command) {
@@ -449,7 +463,11 @@ impl<'a> PositionPad<'a> {
         painter.circle(pos, r_dot, col, Stroke::new(if clipping { st.bold } else { st.thin }, if clipping { p.danger } else { p.bg }));
         painter.text(pos, Align2::CENTER_CENTER, label, tokens.font(ts.caption), p.bg);
 
-        let readout = format!("{}   {}   {}", format_azimuth(az), format_elevation(el), format_distance(dist));
+        let readout = if distance_enabled {
+            format!("{}   {}   {}", format_azimuth(az), format_elevation(el), format_distance(dist))
+        } else {
+            format!("{}   {}", format_azimuth(az), format_elevation(el))
+        };
         let readout_pos = pos2(full_rect.left() + margin * 0.4, full_rect.bottom() - readout_h * 0.5);
         painter.text(readout_pos, Align2::LEFT_CENTER, readout, tokens.mono(ts.caption), p.ink);
         if side > 320.0 && response.hovered() && !response.dragged() {
